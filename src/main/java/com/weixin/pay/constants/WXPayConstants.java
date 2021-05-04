@@ -46,7 +46,7 @@ public class WXPayConstants {
     /**
      * API密钥，在商户平台设置
      */
-    public static final String API_KEY = "xxx"; // 真实
+    public static final String API_KEY = "9b3fbfc62b3b459e9bcaed77407538c99b3fbfc62b3b459e9bcaed77407538c9"; // 真实
     public static final String API_KEY_XXX = "xxx"; // 测试/第二个账号
     public static final String API_KEY_SANDBOX = "xxx"; // sandbox_signkey
 
@@ -71,6 +71,7 @@ public class WXPayConstants {
      */
     public static final String DOMAIN_API = "api.mch.weixin.qq.com";
     public static final String DOMAIN_API2 = "api2.mch.weixin.qq.com";
+    public static final String DOMAIN_API3_QQ = "api.q.qq.com";
     public static final String DOMAIN_APIHK = "apihk.mch.weixin.qq.com";
     public static final String DOMAIN_APIUS = "apius.mch.weixin.qq.com";
 

@@ -119,6 +119,90 @@ public class WXPayRequest {
 
     }
 
+    /**
+     * 请求，只请求一次，不做重试
+     *
+     * @param domain
+     * @param urlSuffix
+     * @param uuid
+     * @param data
+     * @param connectTimeoutMs
+     * @param readTimeoutMs
+     * @param useCert          是否使用证书，针对退款、撤销等操作
+     * @param appid
+     * @param access_token
+     * @param real_notify_url
+     * @return
+     * @throws Exception
+     */
+    private String requestOnceForQQ(final String domain, String urlSuffix,
+                                    String uuid, String data, int connectTimeoutMs,
+                                    int readTimeoutMs, boolean useCert,
+                                    String appid, String access_token, String real_notify_url) throws Exception {
+        BasicHttpClientConnectionManager connManager;
+        if (useCert) {
+            // 证书
+            char[] password = config.getMchID().toCharArray();
+            InputStream certStream = config.getCertStream();
+            KeyStore ks = KeyStore.getInstance("PKCS12");
+            ks.load(certStream, password);
+
+            // 实例化密钥库 & 初始化密钥工厂
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(ks, password);
+
+            // 创建 SSLContext
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(kmf.getKeyManagers(), null, new SecureRandom());
+
+            SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(
+                    sslContext,
+                    new String[]{"TLSv1"},
+                    null,
+                    new DefaultHostnameVerifier());
+
+            connManager = new BasicHttpClientConnectionManager(
+                    RegistryBuilder.<ConnectionSocketFactory>create()
+                            .register("http", PlainConnectionSocketFactory.getSocketFactory())
+                            .register("https", sslConnectionSocketFactory)
+                            .build(),
+                    null,
+                    null,
+                    null
+            );
+        } else {
+            connManager = new BasicHttpClientConnectionManager(
+                    RegistryBuilder.<ConnectionSocketFactory>create()
+                            .register("http", PlainConnectionSocketFactory.getSocketFactory())
+                            .register("https", SSLConnectionSocketFactory.getSocketFactory())
+                            .build(),
+                    null,
+                    null,
+                    null
+            );
+        }
+
+        HttpClient httpClient = HttpClientBuilder.create()
+                .setConnectionManager(connManager)
+                .build();
+
+        String url = "https://api.q.qq.com/wxpay/unifiedorder?appid="+appid+"&access_token="+access_token;
+        HttpPost httpPost = new HttpPost(url);
+
+        RequestConfig requestConfig = RequestConfig.custom().setSocketTimeout(readTimeoutMs).setConnectTimeout(connectTimeoutMs).build();
+        httpPost.setConfig(requestConfig);
+
+        StringEntity postEntity = new StringEntity(data, "UTF-8");
+        httpPost.addHeader("Content-Type", "text/xml");
+        httpPost.addHeader("User-Agent", USER_AGENT + " " + config.getMchID());
+        httpPost.setEntity(postEntity);
+
+        HttpResponse httpResponse = httpClient.execute(httpPost);
+        HttpEntity httpEntity = httpResponse.getEntity();
+        return EntityUtils.toString(httpEntity, "UTF-8");
+
+    }
+
 
     private String request(String urlSuffix, String uuid, String data, int connectTimeoutMs, int readTimeoutMs, boolean useCert, boolean autoReport) throws Exception {
         Exception exception = null;
@@ -212,6 +296,98 @@ public class WXPayRequest {
     }
 
 
+
+    private String requestQQ(String urlSuffix, String uuid, String data, int connectTimeoutMs, int readTimeoutMs, boolean useCert, boolean autoReport, String appid, String access_token, String real_notify_url) throws Exception {
+        Exception exception = null;
+        long elapsedTimeMillis = 0;
+        long startTimestampMs = WXPayUtil.getCurrentTimestampMs();
+        boolean firstHasDnsErr = false;
+        boolean firstHasConnectTimeout = false;
+        boolean firstHasReadTimeout = false;
+        WXPayDomain.DomainInfo domainInfo = config.getWXPayDomain().getDomain(config);
+        if (domainInfo == null) {
+            throw new Exception("WXPayConfig.getWXPayDomain().getDomain() is empty or null");
+        }
+        try {
+            String result = requestOnceForQQ(domainInfo.domain, urlSuffix, uuid, data, connectTimeoutMs, readTimeoutMs, useCert,appid,access_token,real_notify_url);
+            elapsedTimeMillis = WXPayUtil.getCurrentTimestampMs() - startTimestampMs;
+            config.getWXPayDomain().report(domainInfo.domain, elapsedTimeMillis, null);
+            WXPayReport.getInstance(config).report(
+                    uuid,
+                    elapsedTimeMillis,
+                    domainInfo.domain,
+                    domainInfo.primaryDomain,
+                    connectTimeoutMs,
+                    readTimeoutMs,
+                    firstHasDnsErr,
+                    firstHasConnectTimeout,
+                    firstHasReadTimeout);
+            return result;
+        } catch (UnknownHostException ex) {  // dns 解析错误，或域名不存在
+            exception = ex;
+            firstHasDnsErr = true;
+            elapsedTimeMillis = WXPayUtil.getCurrentTimestampMs() - startTimestampMs;
+            WXPayUtil.getLogger().warn("UnknownHostException for domainInfo {}", domainInfo);
+            WXPayReport.getInstance(config).report(
+                    uuid,
+                    elapsedTimeMillis,
+                    domainInfo.domain,
+                    domainInfo.primaryDomain,
+                    connectTimeoutMs,
+                    readTimeoutMs,
+                    firstHasDnsErr,
+                    firstHasConnectTimeout,
+                    firstHasReadTimeout
+            );
+        } catch (ConnectTimeoutException ex) {
+            exception = ex;
+            firstHasConnectTimeout = true;
+            elapsedTimeMillis = WXPayUtil.getCurrentTimestampMs() - startTimestampMs;
+            WXPayUtil.getLogger().warn("connect timeout happened for domainInfo {}", domainInfo);
+            WXPayReport.getInstance(config).report(
+                    uuid,
+                    elapsedTimeMillis,
+                    domainInfo.domain,
+                    domainInfo.primaryDomain,
+                    connectTimeoutMs,
+                    readTimeoutMs,
+                    firstHasDnsErr,
+                    firstHasConnectTimeout,
+                    firstHasReadTimeout
+            );
+        } catch (SocketTimeoutException ex) {
+            exception = ex;
+            firstHasReadTimeout = true;
+            elapsedTimeMillis = WXPayUtil.getCurrentTimestampMs() - startTimestampMs;
+            WXPayUtil.getLogger().warn("timeout happened for domainInfo {}", domainInfo);
+            WXPayReport.getInstance(config).report(
+                    uuid,
+                    elapsedTimeMillis,
+                    domainInfo.domain,
+                    domainInfo.primaryDomain,
+                    connectTimeoutMs,
+                    readTimeoutMs,
+                    firstHasDnsErr,
+                    firstHasConnectTimeout,
+                    firstHasReadTimeout);
+        } catch (Exception ex) {
+            exception = ex;
+            elapsedTimeMillis = WXPayUtil.getCurrentTimestampMs() - startTimestampMs;
+            WXPayReport.getInstance(config).report(
+                    uuid,
+                    elapsedTimeMillis,
+                    domainInfo.domain,
+                    domainInfo.primaryDomain,
+                    connectTimeoutMs,
+                    readTimeoutMs,
+                    firstHasDnsErr,
+                    firstHasConnectTimeout,
+                    firstHasReadTimeout);
+        }
+        config.getWXPayDomain().report(domainInfo.domain, elapsedTimeMillis, exception);
+        throw exception;
+    }
+
     /**
      * 可重试的，非双向认证的请求
      *
@@ -236,6 +412,23 @@ public class WXPayRequest {
      */
     public String requestWithoutCert(String urlSuffix, String uuid, String data, int connectTimeoutMs, int readTimeoutMs, boolean autoReport) throws Exception {
         return this.request(urlSuffix, uuid, data, connectTimeoutMs, readTimeoutMs, false, autoReport);
+    }
+    /**
+     * 可重试的，非双向认证的请求
+     *
+     * @param urlSuffix
+     * @param uuid
+     * @param data
+     * @param connectTimeoutMs
+     * @param readTimeoutMs
+     * @param appid
+     * @param access_token
+     * @param real_notify_url
+     * @return
+     */
+    public String requestWithoutCert2(String urlSuffix, String uuid, String data, int connectTimeoutMs, int readTimeoutMs, boolean autoReport,
+                                      String appid, String access_token, String real_notify_url) throws Exception {
+        return this.requestQQ(urlSuffix, uuid, data, connectTimeoutMs, readTimeoutMs, false, autoReport,appid,access_token,real_notify_url);
     }
 
     /**

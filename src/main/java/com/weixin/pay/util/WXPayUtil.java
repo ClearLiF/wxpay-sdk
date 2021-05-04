@@ -68,6 +68,40 @@ public class WXPayUtil {
         }
 
     }
+    /**
+     * XML格式字符串转换为Map
+     *
+     * @param strXML XML字符串
+     * @return XML数据转换后的Map
+     * @throws Exception
+     */
+    public static Map<String, String> xmlToMap2(String strXML) throws Exception {
+        try {
+            Map<String, String> data = new HashMap<String, String>();
+            DocumentBuilder documentBuilder = WXPayXmlUtil.newDocumentBuilder();
+            InputStream stream = new ByteArrayInputStream(strXML.getBytes("UTF-8"));
+            org.w3c.dom.Document doc = documentBuilder.parse(stream);
+            doc.getDocumentElement().normalize();
+            NodeList nodeList = doc.getDocumentElement().getChildNodes();
+            for (int idx = 0; idx < nodeList.getLength(); ++idx) {
+                Node node = nodeList.item(idx);
+                if (node.getNodeType() == Node.ELEMENT_NODE) {
+                    org.w3c.dom.Element element = (org.w3c.dom.Element) node;
+                    data.put(element.getNodeName(), element.getTextContent());
+                }
+            }
+            try {
+                stream.close();
+            } catch (Exception ex) {
+                // do nothing
+            }
+            return data;
+        } catch (Exception ex) {
+            WXPayUtil.getLogger().warn("Invalid XML, can not convert to map. Error message: {}. XML content: {}", ex.getMessage(), strXML);
+            throw ex;
+        }
+
+    }
 
     /**
      * 将Map转换为XML格式的字符串
@@ -209,7 +243,42 @@ public class WXPayUtil {
                 continue;
             }
             if (data.get(k).trim().length() > 0) // 参数值为空，则不参与签名
+            {
                 sb.append(k).append("=").append(data.get(k).trim()).append("&");
+            }
+        }
+        sb.append("key=").append(key);
+        if (SignType.MD5.equals(signType)) {
+            WXPayUtil.getLogger().info("signPay=" + sb.toString());
+            return MD5(sb.toString()).toUpperCase();
+        }
+        else if (SignType.HMACSHA256.equals(signType)) {
+            return HMACSHA256(sb.toString(), key);
+        }
+        else {
+            throw new Exception(String.format("Invalid sign_type: %s", signType));
+        }
+    }
+
+    /**
+     * 生成签名. 注意，若含有sign_type字段，必须和signType参数保持一致。
+     *
+     * @param data 待签名数据
+     * @param key API密钥
+     * @param signType 签名方式
+     * @return 签名
+     */
+    public static String generateSignature2(final Map<String, Object> data, String key, SignType signType) throws Exception {
+        Set<String> keySet = data.keySet();
+        String[] keyArray = keySet.toArray(new String[keySet.size()]);
+        Arrays.sort(keyArray);
+        StringBuilder sb = new StringBuilder();
+        for (String k : keyArray) {
+            if (k.equals(WXPayConstants.FIELD_SIGN)) {
+                continue;
+            }
+            if (data.get(k).toString().trim().length() > 0) // 参数值为空，则不参与签名
+                sb.append(k).append("=").append(data.get(k)).append("&");
         }
         sb.append("key=").append(key);
         if (SignType.MD5.equals(signType)) {

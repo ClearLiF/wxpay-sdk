@@ -102,6 +102,18 @@ public class WXPay {
         reqData.put("sign", WXPayUtil.generateSignature(reqData, config.getKey(), this.signType));
         return reqData;
     }
+    public Map<String, Object> fillRequestData2(Map<String, Object> reqData) throws Exception {
+        reqData.put("appid", config.getAppID());
+        reqData.put("mch_id", config.getMchID());
+        reqData.put("nonce_str", WXPayUtil.generateNonceStr());
+        if (SignType.MD5.equals(this.signType)) {
+            reqData.put("sign_type", WXPayConstants.MD5);
+        } else if (SignType.HMACSHA256.equals(this.signType)) {
+            reqData.put("sign_type", WXPayConstants.HMACSHA256);
+        }
+        reqData.put("sign", WXPayUtil.generateSignature2(reqData, config.getKey(), this.signType));
+        return reqData;
+    }
 
     /**
      * 向 Map 中添加 appid、mch_id、nonce_str、sign <br>
@@ -549,6 +561,42 @@ public class WXPay {
             reqData.put("notify_url", this.notifyUrl);
         }
         String respXml = this.requestWithoutCert(url, this.fillRequestData(reqData), connectTimeoutMs, readTimeoutMs);
+        return this.processResponseXml(respXml);
+    }
+
+    /**
+     * 作用：qq统一下单<br>
+     * 场景：公共号支付、扫码支付、APP支付
+     *
+     * @param reqData          向wxpay post的请求数据
+     * @param connectTimeoutMs 连接超时时间，单位是毫秒
+     * @param readTimeoutMs    读超时时间，单位是毫秒
+     * @return API返回数据
+     * @throws Exception
+     */
+    public Map<String, String> unifiedOrderQQ(Map<String, String> reqData,
+                                              int connectTimeoutMs,
+                                              int readTimeoutMs,
+                                              String appid,
+                                              String access_token ,
+                                              String real_notify_url) throws Exception {
+        String url;
+        if (this.useSandbox) {
+            url = WXPayConstants.SANDBOX_UNIFIEDORDER_URL_SUFFIX;
+        } else {
+            url = WXPayConstants.UNIFIEDORDER_URL_SUFFIX;
+        }
+        if (this.notifyUrl != null) {
+            reqData.put("notify_url", this.notifyUrl);
+        }
+
+        String msgUUID = reqData.get("nonce_str");
+        String reqBody = WXPayUtil.mapToXml(reqData);
+
+        String respXml = this.wxPayRequest.requestWithoutCert2(url,
+                msgUUID, reqBody, connectTimeoutMs, readTimeoutMs, autoReport,appid,access_token,real_notify_url);
+
+        //String respXml = this.requestWithoutCert(url, this.fillRequestData(reqData), connectTimeoutMs, readTimeoutMs);
         return this.processResponseXml(respXml);
     }
 

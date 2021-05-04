@@ -15,28 +15,28 @@ public abstract class WXPayConfig {
      *
      * @return App ID
      */
-    abstract String getAppID();
+   public abstract String getAppID();
 
     /**
      * 获取 Mch ID
      *
      * @return Mch ID
      */
-    abstract String getMchID();
+    public abstract String getMchID();
 
     /**
      * 获取 API 密钥
      *
      * @return API密钥
      */
-    abstract String getKey();
+    public abstract String getKey();
 
     /**
      * 获取商户证书内容
      *
      * @return 商户证书内容
      */
-    abstract InputStream getCertStream();
+    public abstract InputStream getCertStream();
 
     /**
      * HTTP(S) 连接超时时间，单位毫秒
@@ -61,7 +61,7 @@ public abstract class WXPayConfig {
      *
      * @return IWXPayDomain
      */
-    abstract WXPayDomain getWXPayDomain();
+    public abstract WXPayDomain getWXPayDomain();
 
     /**
      * 是否自动上报。

@@ -16,16 +16,16 @@ public abstract interface WXPayDomain {
      *           ConnectTimeoutException，表示建立网络连接异常
      *           UnknownHostException， 表示dns解析异常
      */
-    abstract void report(final String domain, long elapsedTimeMillis, final Exception ex);
+   public abstract void report(final String domain, long elapsedTimeMillis, final Exception ex);
 
     /**
      * 获取域名
      * @param config 配置
      * @return 域名
      */
-    abstract DomainInfo getDomain(final WXPayConfig config);
+    public abstract DomainInfo getDomain(final WXPayConfig config);
 
-    static class DomainInfo{
+    public static class DomainInfo{
         public String domain;       //域名
         public boolean primaryDomain;     //该域名是否为主域名。例如:api.mch.weixin.qq.com为主域名
         public DomainInfo(String domain, boolean primaryDomain) {

@@ -71,7 +71,7 @@ public class XxxWXPayConfigImpl extends WXPayConfig {
     }
 
     @Override
-    WXPayDomain getWXPayDomain() {
+    public WXPayDomain getWXPayDomain() {
         return WXPayDomainSimpleImpl.instance();
     }
 
